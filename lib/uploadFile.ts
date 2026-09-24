@@ -1,6 +1,6 @@
 "use server";
 
-import { PDFParse } from "pdf-parse";
+import PDFParser from "pdf2json";
 
 export async function extractPdfTextFromFile(file: File) {
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
@@ -8,12 +8,28 @@ export async function extractPdfTextFromFile(file: File) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const parser = new PDFParse({ data: buffer });
 
-  try {
-    const result = await parser.getText();
-    return result.text.trim();
-  } finally {
-    await parser.destroy();
-  }
+  return new Promise<string>((resolve, reject) => {
+    const pdfParser = new PDFParser(null, true);
+
+    pdfParser.on("pdfParser_dataError", (error) => {
+      const parserError = error instanceof Error ? error : error.parserError;
+
+      reject(
+        new Error(
+          parserError instanceof Error
+            ? parserError.message
+            : "Failed to read PDF."
+        )
+      );
+    });
+
+    pdfParser.on("pdfParser_dataReady", () => {
+      const text = pdfParser.getRawTextContent().trim();
+      pdfParser.destroy();
+      resolve(text);
+    });
+
+    pdfParser.parseBuffer(buffer);
+  });
 }
