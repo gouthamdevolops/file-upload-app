@@ -56,18 +56,16 @@ export default function FileUploadPage() {
 
       if (!response.ok) {
         const errorText = await response.text();
+        let errorMessage = errorText || "Something went wrong while analyzing the PDF.";
 
         try {
           const data: { error?: string } = JSON.parse(errorText);
-
-          throw new Error(
-            data.error || "Something went wrong while analyzing the PDF."
-          );
+          errorMessage = data.error || errorMessage;
         } catch {
-          throw new Error(
-            errorText || "Something went wrong while analyzing the PDF."
-          );
+          // Keep the plain text error message.
         }
+
+        throw new Error(errorMessage);
       }
 
       if (!response.body) {
