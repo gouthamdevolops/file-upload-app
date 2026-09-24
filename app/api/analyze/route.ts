@@ -80,13 +80,17 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Analyze API error:", error);
 
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : JSON.stringify(error);
+
     return Response.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong while analyzing the PDF.",
+        error: errorMessage || "Something went wrong while analyzing the PDF.",
       },
       { status: 500 }
     );
