@@ -1,4 +1,7 @@
 allowBuilds:
+  '@google/genai': false
+  esbuild: false
+  protobufjs: false
   unrs-resolver: false
 minimumReleaseAgeExclude:
   - '@ai-sdk/gateway@4.0.91'

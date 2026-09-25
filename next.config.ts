@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
+  serverExternalPackages: [
+    "@earendil-works/pi-coding-agent",
+    "@llamaindex/liteparse",
+    "pdf-parse",
+    "pdfjs-dist",
+  ],
 };
 
 export default nextConfig;

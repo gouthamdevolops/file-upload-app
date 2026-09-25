@@ -20,6 +20,9 @@
 # production
 /build
 
+# local upload sessions
+/sessions
+
 # misc
 .DS_Store
 *.pem

@@ -2,10 +2,24 @@
 
 import { useState } from "react";
 
+type StructuredOutput = {
+  fields: {
+    name:
+      | "total_month_cycles"
+      | "total_month_hours"
+      | "total_new_cycles"
+      | "total_new_time"
+      | "aircraft_type";
+    value: string;
+    confidence: number;
+  }[];
+};
+
 export default function FileUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
+  const [structuredOutput, setStructuredOutput] = useState<StructuredOutput | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,8 +40,9 @@ export default function FileUploadPage() {
 
     setFile(selectedFile);
     setMessage("");
+    setStructuredOutput(null);
   };
-
+// here is handling the upload of the file and query
   const handleUpload = async () => {
     if (!file) {
       setMessage("Please select a PDF first.");
@@ -41,15 +56,52 @@ export default function FileUploadPage() {
 
     try {
       setLoading(true);
-      setMessage("Analyzing PDF...");
+      setStructuredOutput(null);
+      setMessage("Creating structured analysis...");
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("query", query.trim());
+      const createFormData = (mode: "structured" | "stream", currentSessionId?: string) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("query", query.trim());
+        formData.append("mode", mode);
+
+        if (currentSessionId) {
+          formData.append("sessionId", currentSessionId);
+        }
+
+        return formData;
+      };
+
+      const structuredResponse = await fetch("/api/analyze", {
+        method: "POST",
+        body: createFormData("structured"),
+      });
+
+      if (!structuredResponse.ok) {
+        const errorText = await structuredResponse.text();
+        let errorMessage = errorText || "Something went wrong while creating structured output.";
+
+        try {
+          const data: { error?: string } = JSON.parse(errorText);
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // Keep the plain text error message.
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const structuredData: {
+        output?: StructuredOutput;
+        sessionId?: string;
+        savedFile?: string;
+      } = await structuredResponse.json();
+      setStructuredOutput(structuredData.output || null);
+      setMessage("Analyzing PDF...");
 
       const response = await fetch("/api/analyze", {
         method: "POST",
-        body: formData,
+        body: createFormData("stream", structuredData.sessionId),
       });
 
       console.log("API STATUS:", response.status);
@@ -109,6 +161,7 @@ export default function FileUploadPage() {
     setFile(null);
     setQuery("");
     setMessage("");
+    setStructuredOutput(null);
   };
 
   const fileSize = file ? (file.size / 1024 / 1024).toFixed(2) : null;
@@ -252,6 +305,35 @@ export default function FileUploadPage() {
                 <p className="mt-1 text-blue-700">
                   Extracting text and streaming the answer as it is generated.
                 </p>
+              </div>
+            )}
+
+            {structuredOutput && (
+              <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                  Structured output
+                </p>
+
+                <div className="mt-4 overflow-x-auto rounded-xl bg-white p-4 text-slate-800">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500">
+                        <th className="py-2 pr-4">Name</th>
+                        <th className="py-2 pr-4">Value</th>
+                        <th className="py-2">Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {structuredOutput.fields.map((field) => (
+                        <tr key={field.name} className="border-b border-slate-100 last:border-0">
+                          <td className="py-3 pr-4 font-semibold">{field.name}</td>
+                          <td className="py-3 pr-4">{field.value || "Not found"}</td>
+                          <td className="py-3">{Math.round(field.confidence * 100)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
