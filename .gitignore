@@ -20,8 +20,8 @@
 # production
 /build
 
-# local upload sessions
-/sessions
+# local upload workspaces
+/workspace
 
 # misc
 .DS_Store

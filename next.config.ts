@@ -4,8 +4,6 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "@earendil-works/pi-coding-agent",
     "@llamaindex/liteparse",
-    "pdf-parse",
-    "pdfjs-dist",
   ],
 };
 

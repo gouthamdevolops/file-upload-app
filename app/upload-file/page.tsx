@@ -10,16 +10,57 @@ type StructuredOutput = {
       | "total_new_cycles"
       | "total_new_time"
       | "aircraft_type";
-    value: string;
+    value: string | null;
     confidence: number;
   }[];
 };
 
+type TraceEvent = {
+  timestamp: string;
+  type:
+    | "session.started"
+    | "model.started"
+    | "tool.started"
+    | "tool.completed"
+    | "result.saved"
+    | "session.completed"
+    | "session.failed";
+  data: {
+    workspaceId?: string;
+    sessionId?: string;
+    toolName?: string;
+    args?: Record<string, unknown>;
+    result?: StructuredOutput;
+    message?: string;
+    isError?: boolean;
+  };
+};
+
+function formatEvent(event: TraceEvent) {
+  const time = new Date(event.timestamp).toLocaleTimeString();
+
+  if (event.type === "tool.started") {
+    return `[${time}] TOOL STARTED: ${event.data.toolName} ${JSON.stringify(event.data.args || {})}`;
+  }
+
+  if (event.type === "tool.completed") {
+    return `[${time}] TOOL COMPLETED: ${event.data.toolName}${event.data.isError ? " failed" : " completed"}`;
+  }
+
+  if (event.type === "session.failed") {
+    return `[${time}] SESSION FAILED: ${event.data.message || "Extraction failed"}`;
+  }
+
+  return `[${time}] ${event.type.toUpperCase()}: ${JSON.stringify(event.data)}`;
+}
+
 export default function FileUploadPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [query, setQuery] = useState("");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [filename, setFilename] = useState("");
   const [message, setMessage] = useState("");
   const [structuredOutput, setStructuredOutput] = useState<StructuredOutput | null>(null);
+  const [agentLog, setAgentLog] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,96 +80,84 @@ export default function FileUploadPage() {
     }
 
     setFile(selectedFile);
+    setWorkspaceId("");
+    setFilename("");
     setMessage("");
     setStructuredOutput(null);
+    setAgentLog("");
   };
-// here is handling the upload of the file and query
-  const handleUpload = async () => {
+
+  const handleUploadAndAnalyze = async () => {
     if (!file) {
       setMessage("Please select a PDF first.");
-      return;
-    }
-
-    if (!query.trim()) {
-      setMessage("Please enter what you want to know from the PDF.");
       return;
     }
 
     try {
       setLoading(true);
       setStructuredOutput(null);
-      setMessage("Creating structured analysis...");
+      setAgentLog("");
+      setMessage("Uploading PDF and extracting markdown...");
 
-      const createFormData = (mode: "structured" | "stream", currentSessionId?: string) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("query", query.trim());
-        formData.append("mode", mode);
+      const formData = new FormData();
+      formData.append("file", file);
 
-        if (currentSessionId) {
-          formData.append("sessionId", currentSessionId);
-        }
+      const uploadResponse = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-        return formData;
+      if (!uploadResponse.ok) {
+        const data = await uploadResponse.json().catch(() => ({}));
+        throw new Error(data.error || "Upload failed.");
+      }
+
+      const uploadData = (await uploadResponse.json()) as {
+        workspaceId: string;
+        filename: string;
       };
 
-      const structuredResponse = await fetch("/api/analyze", {
+      setWorkspaceId(uploadData.workspaceId);
+      setFilename(uploadData.filename);
+      setMessage("Running Pi extraction session...");
+      setAgentLog(`[${new Date().toLocaleTimeString()}] UPLOAD READY: workspace ${uploadData.workspaceId}\n`);
+
+      const analyzeResponse = await fetch("/api/analyze", {
         method: "POST",
-        body: createFormData("structured"),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId: uploadData.workspaceId }),
       });
 
-      if (!structuredResponse.ok) {
-        const errorText = await structuredResponse.text();
-        let errorMessage = errorText || "Something went wrong while creating structured output.";
-
-        try {
-          const data: { error?: string } = JSON.parse(errorText);
-          errorMessage = data.error || errorMessage;
-        } catch {
-          // Keep the plain text error message.
-        }
-
-        throw new Error(errorMessage);
+      if (!analyzeResponse.ok) {
+        const data = await analyzeResponse.json().catch(() => ({}));
+        throw new Error(data.error || "Analysis failed.");
       }
 
-      const structuredData: {
-        output?: StructuredOutput;
-        sessionId?: string;
-        savedFile?: string;
-      } = await structuredResponse.json();
-      setStructuredOutput(structuredData.output || null);
-      setMessage("Analyzing PDF...");
-
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        body: createFormData("stream", structuredData.sessionId),
-      });
-
-      console.log("API STATUS:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = errorText || "Something went wrong while analyzing the PDF.";
-
-        try {
-          const data: { error?: string } = JSON.parse(errorText);
-          errorMessage = data.error || errorMessage;
-        } catch {
-          // Keep the plain text error message.
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      if (!response.body) {
+      if (!analyzeResponse.body) {
         throw new Error("The server did not return a stream.");
       }
 
-      setMessage("");
-
-      const reader = response.body.getReader();
+      const reader = analyzeResponse.body.getReader();
       const decoder = new TextDecoder();
-      let answer = "";
+      let buffer = "";
+
+      const handleLine = (line: string) => {
+        if (!line.trim()) {
+          return;
+        }
+
+        const event = JSON.parse(line) as TraceEvent;
+        setAgentLog((current) => `${current}${formatEvent(event)}\n`);
+
+        if (event.type === "session.completed" && event.data.result) {
+          setStructuredOutput(event.data.result);
+          setMessage("Extraction completed.");
+        }
+
+        if (event.type === "session.failed") {
+          throw new Error(event.data.message || "Extraction failed.");
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -137,21 +166,17 @@ export default function FileUploadPage() {
           break;
         }
 
-        answer += decoder.decode(value, { stream: true });
-        setMessage(answer);
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        lines.forEach(handleLine);
       }
 
-      answer += decoder.decode();
-
-      setMessage(answer || "No relevant information was found in the PDF.");
+      buffer += decoder.decode();
+      handleLine(buffer);
     } catch (error) {
-      console.error("UPLOAD ERROR:", error);
-
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while analyzing the PDF."
-      );
+      console.error("EXTRACTION ERROR:", error);
+      setMessage(error instanceof Error ? error.message : "Something went wrong while analyzing the PDF.");
     } finally {
       setLoading(false);
     }
@@ -159,9 +184,11 @@ export default function FileUploadPage() {
 
   const handleClear = () => {
     setFile(null);
-    setQuery("");
+    setWorkspaceId("");
+    setFilename("");
     setMessage("");
     setStructuredOutput(null);
+    setAgentLog("");
   };
 
   const fileSize = file ? (file.size / 1024 / 1024).toFixed(2) : null;
@@ -174,17 +201,16 @@ export default function FileUploadPage() {
         <div className="grid w-full gap-8">
           <div className="mx-auto max-w-3xl space-y-6 text-center">
             <div className="inline-flex rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm text-slate-200 shadow-lg backdrop-blur">
-              AI powered PDF reader
+              Pi powered aircraft extraction
             </div>
 
             <div>
               <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
-                Chat with your PDF in seconds.
+                Extract aircraft PDF fields.
               </h1>
 
               <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-                Upload a document, ask a question, and get a streamed answer
-                based only on the content inside your PDF.
+                Upload once, then Pi reads the workspace document through safe custom tools and saves a structured result.
               </p>
             </div>
 
@@ -195,11 +221,11 @@ export default function FileUploadPage() {
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                 <p className="text-2xl">02</p>
-                <p className="mt-2">Ask anything</p>
+                <p className="mt-2">Pi uses tools</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                 <p className="text-2xl">03</p>
-                <p className="mt-2">Get answers</p>
+                <p className="mt-2">Result saved</p>
               </div>
             </div>
           </div>
@@ -207,16 +233,12 @@ export default function FileUploadPage() {
           <div className="rounded-[2rem] border border-white/10 bg-white/95 p-5 text-slate-950 shadow-2xl shadow-black/30 backdrop-blur sm:p-8">
             <div className="mb-7 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-slate-950">
-                  Analyze document
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  PDF only, up to 10 MB.
-                </p>
+                <h2 className="text-2xl font-bold text-slate-950">Analyze document</h2>
+                <p className="mt-1 text-sm text-slate-500">PDF only, up to 10 MB.</p>
               </div>
 
               <div className="rounded-2xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white">
-                Live stream
+                Workspace session
               </div>
             </div>
 
@@ -226,15 +248,9 @@ export default function FileUploadPage() {
                   htmlFor="pdf-file"
                   className="group flex min-h-72 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-blue-500 hover:bg-blue-50"
                 >
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl text-white shadow-lg shadow-blue-600/30">
-                ↑
-              </span>
-              <span className="mt-4 text-base font-semibold text-slate-900">
-                Choose a PDF file
-              </span>
-              <span className="mt-1 text-sm text-slate-500">
-                Click to browse from your computer
-              </span>
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl text-white shadow-lg shadow-blue-600/30">↑</span>
+                  <span className="mt-4 text-base font-semibold text-slate-900">Choose a PDF file</span>
+                  <span className="mt-1 text-sm text-slate-500">Click to browse from your computer</span>
                   <input
                     id="pdf-file"
                     type="file"
@@ -247,72 +263,74 @@ export default function FileUploadPage() {
 
                 {file && (
                   <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Selected PDF
-                  </p>
-                  <p className="mt-1 truncate font-semibold text-slate-900">
-                    {file.name}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">{fileSize} MB</p>
-                </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Selected PDF</p>
+                      <p className="mt-1 truncate font-semibold text-slate-900">{file.name}</p>
+                      <p className="mt-1 text-sm text-slate-500">{fileSize} MB</p>
+                    </div>
 
-                {!loading && (
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    className="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-                  >
-                    Remove
-                  </button>
-                )}
+                    {!loading && (
+                      <button
+                        type="button"
+                        onClick={handleClear}
+                        className="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col">
-                <label
-                  htmlFor="query"
-                  className="mb-2 block text-sm font-semibold text-slate-900"
-                >
-                  Your question
-                </label>
+              <div className="flex flex-col justify-between rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Extraction target</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    This fixed extraction reads the uploaded document and finds total month cycles, total month hours,
+                    total cycles since new, total time since new, and aircraft type.
+                  </p>
 
-                <textarea
-                  id="query"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  disabled={loading}
-                  placeholder="Example: Summarize this PDF in five bullet points."
-                  rows={8}
-                  className="min-h-72 w-full flex-1 resize-none rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100"
-                />
+                  {workspaceId && (
+                    <div className="mt-5 rounded-2xl bg-white p-4 text-sm text-slate-700">
+                      <p className="font-semibold text-slate-900">Workspace created</p>
+                      <p className="mt-1 break-all">{workspaceId}</p>
+                      <p className="mt-1">{filename}</p>
+                    </div>
+                  )}
+                </div>
 
                 <button
                   type="button"
-                  onClick={handleUpload}
-                  disabled={!file || !query.trim() || loading}
+                  onClick={handleUploadAndAnalyze}
+                  disabled={!file || loading}
                   className="mt-5 flex w-full items-center justify-center rounded-2xl bg-blue-600 px-5 py-4 font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                 >
-                  {loading ? "Analyzing..." : "Analyze PDF"}
+                  {loading ? "Running Pi..." : "Upload and extract"}
                 </button>
               </div>
             </div>
 
-            {loading && (
+            {message && (
               <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
-                <p className="font-semibold">Processing your document</p>
-                <p className="mt-1 text-blue-700">
-                  Extracting text and streaming the answer as it is generated.
+                <p className="font-semibold">Status</p>
+                <p className="mt-1 text-blue-700">{message}</p>
+              </div>
+            )}
+
+            {agentLog && (
+              <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                  Live Pi session/tool trace
                 </p>
+                <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-slate-950 p-4 font-mono text-sm leading-6 text-green-200">
+{agentLog.trimStart()}
+                </pre>
               </div>
             )}
 
             {structuredOutput && (
               <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                  Structured output
-                </p>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Structured output</p>
 
                 <div className="mt-4 overflow-x-auto rounded-xl bg-white p-4 text-slate-800">
                   <table className="w-full text-left text-sm">
@@ -328,32 +346,11 @@ export default function FileUploadPage() {
                         <tr key={field.name} className="border-b border-slate-100 last:border-0">
                           <td className="py-3 pr-4 font-semibold">{field.name}</td>
                           <td className="py-3 pr-4">{field.value || "Not found"}</td>
-                          <td className="py-3">{Math.round(field.confidence * 100)}%</td>
+                          <td className="py-3">{field.confidence}%</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </div>
-            )}
-
-            {message && (
-              <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                    Answer
-                  </p>
-                  {loading && (
-                    <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                      Streaming
-                    </span>
-                  )}
-                </div>
-
-                <div className="max-h-80 overflow-y-auto rounded-xl bg-white p-4">
-                  <p className="whitespace-pre-line break-words leading-7 text-slate-800">
-                    {message}
-                  </p>
                 </div>
               </div>
             )}
