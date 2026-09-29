@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { getWorkspacePaths } from "@/lib/session";
+import { getWorkspacePathsFromMetadata } from "@/lib/session";
 import { resultToTableFields, runWorkspaceExtraction, TraceEvent } from "@/lib/piAgent";
 
 export const runtime = "nodejs";
@@ -35,8 +35,8 @@ export async function POST(request: Request) {
         };
 
         try {
-          const fields = await runWorkspaceExtraction({ workspaceId, onEvent: send });
-          const paths = getWorkspacePaths(workspaceId);
+          const extraction = await runWorkspaceExtraction({ workspaceId, onEvent: send });
+          const paths = await getWorkspacePathsFromMetadata(workspaceId);
           const savedResult = JSON.parse(await readFile(paths.resultPath, "utf8"));
 
           send({
@@ -45,8 +45,9 @@ export async function POST(request: Request) {
             data: {
               workspaceId,
               result: {
-                fields: resultToTableFields(fields),
-                raw: savedResult.fields,
+                fields: resultToTableFields(extraction.fields),
+                components: extraction.components,
+                raw: savedResult,
               },
             },
           });

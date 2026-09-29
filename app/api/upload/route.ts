@@ -1,5 +1,5 @@
-import { createWorkspaceForUpload, saveWorkspaceMarkdown } from "@/lib/session";
-import { convertPdfToMarkdownWithLiteParse } from "@/lib/liteparse";
+import { createWorkspaceForUpload, saveWorkspaceMarkdown, saveWorkspaceParsedJson } from "@/lib/session";
+import { parsePdfWithLiteParse } from "@/lib/liteparse";
 
 export const runtime = "nodejs";
 
@@ -34,8 +34,9 @@ export async function POST(request: Request) {
     }
 
     const workspace = await createWorkspaceForUpload(file);
-    const markdownText = await convertPdfToMarkdownWithLiteParse(workspace.originalFilePath);
-    await saveWorkspaceMarkdown(workspace.workspaceId, markdownText);
+    const parsedDocument = await parsePdfWithLiteParse(workspace.originalFilePath);
+    await saveWorkspaceMarkdown(workspace.workspaceId, parsedDocument.markdown, workspace.metadata.storedOriginalFilename);
+    await saveWorkspaceParsedJson(workspace.workspaceId, parsedDocument.parsedJson, workspace.metadata.storedOriginalFilename);
 
     return Response.json({
       success: true,

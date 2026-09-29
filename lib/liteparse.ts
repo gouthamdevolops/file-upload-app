@@ -1,10 +1,14 @@
 import { LiteParse } from "@llamaindex/liteparse";
 
-export async function convertPdfToMarkdownWithLiteParse(filePath: string) {
+export async function parsePdfWithLiteParse(filePath: string) {
   const parser = new LiteParse({
     outputFormat: "markdown",
     imageMode: "placeholder",
     extractLinks: true,
+    extractBlocks: true,
+    extractContentBounds: true,
+    extractTextMetadata: true,
+    emitWordBoxes: true,
   });
 
   const result = await parser.parse(filePath);
@@ -14,5 +18,13 @@ export async function convertPdfToMarkdownWithLiteParse(filePath: string) {
     throw new Error("LiteParse did not return markdown text for this PDF.");
   }
 
+  return {
+    markdown,
+    parsedJson: result,
+  };
+}
+
+export async function convertPdfToMarkdownWithLiteParse(filePath: string) {
+  const { markdown } = await parsePdfWithLiteParse(filePath);
   return markdown;
 }

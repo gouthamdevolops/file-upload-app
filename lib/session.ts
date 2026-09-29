@@ -12,6 +12,8 @@ export type WorkspaceMetadata = {
   sessionId: string | null;
   sessionFile: string | null;
   originalFilename: string;
+  storedOriginalFilename: string;
+  storedMarkdownFilename: string;
   status: WorkspaceStatus;
   createdAt: string;
   updatedAt: string;
@@ -31,13 +33,31 @@ function getWorkspaceRootDir() {
   return path.join(process.cwd(), WORKSPACE_ROOT);
 }
 
-export function getWorkspacePaths(workspaceId: string) {
+function sanitizeFilename(filename: string, fallback: string) {
+  const base = path.basename(filename || fallback).replace(/[^a-zA-Z0-9._ -]/g, "_").trim();
+  return base || fallback;
+}
+
+function getMarkdownFilename(filename: string) {
+  const parsed = path.parse(sanitizeFilename(filename, "document.pdf"));
+  return `${parsed.name || "document"}.md`;
+}
+
+function getParsedJsonFilename(filename: string) {
+  const parsed = path.parse(sanitizeFilename(filename, "document.pdf"));
+  return `${parsed.name || "document"}.json`;
+}
+
+export function getWorkspacePaths(workspaceId: string, originalFilename = "original.pdf") {
   assertWorkspaceId(workspaceId);
 
   const workspaceDir = path.join(getWorkspaceRootDir(), workspaceId);
   const uploadsDir = path.join(workspaceDir, "uploads");
   const resultsDir = path.join(workspaceDir, "results");
   const tracesDir = path.join(workspaceDir, "traces");
+  const storedOriginalFilename = sanitizeFilename(originalFilename, "original.pdf");
+  const storedMarkdownFilename = getMarkdownFilename(storedOriginalFilename);
+  const storedParsedJsonFilename = getParsedJsonFilename(storedOriginalFilename);
 
   return {
     workspaceId,
@@ -45,8 +65,12 @@ export function getWorkspacePaths(workspaceId: string) {
     uploadsDir,
     resultsDir,
     tracesDir,
-    originalFilePath: path.join(uploadsDir, "original.pdf"),
-    documentPath: path.join(uploadsDir, "document.md"),
+    storedOriginalFilename,
+    storedMarkdownFilename,
+    storedParsedJsonFilename,
+    originalFilePath: path.join(uploadsDir, storedOriginalFilename),
+    documentPath: path.join(uploadsDir, storedMarkdownFilename),
+    documentJsonPath: path.join(uploadsDir, storedParsedJsonFilename),
     resultPath: path.join(resultsDir, "result.json"),
     metadataPath: path.join(workspaceDir, "session.json"),
   };
@@ -54,7 +78,7 @@ export function getWorkspacePaths(workspaceId: string) {
 
 export async function createWorkspaceForUpload(file: File) {
   const workspaceId = `${WORKSPACE_PREFIX}${randomUUID()}`;
-  const paths = getWorkspacePaths(workspaceId);
+  const paths = getWorkspacePaths(workspaceId, file.name || "original.pdf");
   const now = new Date().toISOString();
 
   await mkdir(paths.uploadsDir, { recursive: true });
@@ -68,6 +92,8 @@ export async function createWorkspaceForUpload(file: File) {
     sessionId: null,
     sessionFile: null,
     originalFilename: file.name || "original.pdf",
+    storedOriginalFilename: paths.storedOriginalFilename,
+    storedMarkdownFilename: paths.storedMarkdownFilename,
     status: "ready",
     createdAt: now,
     updatedAt: now,
@@ -89,7 +115,15 @@ export async function readWorkspaceMetadata(workspaceId: string) {
     throw new Error("Workspace metadata does not match requested workspace.");
   }
 
+  metadata.storedOriginalFilename ||= sanitizeFilename(metadata.originalFilename, "original.pdf");
+  metadata.storedMarkdownFilename ||= getMarkdownFilename(metadata.storedOriginalFilename);
+
   return metadata;
+}
+
+export async function getWorkspacePathsFromMetadata(workspaceId: string) {
+  const metadata = await readWorkspaceMetadata(workspaceId);
+  return getWorkspacePaths(workspaceId, metadata.storedOriginalFilename || metadata.originalFilename);
 }
 
 export async function writeWorkspaceMetadata(workspaceId: string, metadata: WorkspaceMetadata) {
@@ -117,8 +151,8 @@ export async function updateWorkspaceMetadata(
   return next;
 }
 
-export async function saveWorkspaceMarkdown(workspaceId: string, markdownText: string) {
-  const paths = getWorkspacePaths(workspaceId);
+export async function saveWorkspaceMarkdown(workspaceId: string, markdownText: string, originalFilename = "original.pdf") {
+  const paths = getWorkspacePaths(workspaceId, originalFilename);
   const markdown = markdownText.trim().startsWith("#")
     ? `${markdownText.trim()}\n`
     : `# ${workspaceId}\n\n${markdownText.trim()}\n`;
@@ -126,4 +160,10 @@ export async function saveWorkspaceMarkdown(workspaceId: string, markdownText: s
   await writeFile(paths.documentPath, markdown);
 
   return paths.documentPath;
+}
+
+export async function saveWorkspaceParsedJson(workspaceId: string, parsedJson: unknown, originalFilename = "original.pdf") {
+  const paths = getWorkspacePaths(workspaceId, originalFilename);
+  await writeFile(paths.documentJsonPath, `${JSON.stringify(parsedJson, null, 2)}\n`);
+  return paths.documentJsonPath;
 }
