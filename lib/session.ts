@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const WORKSPACE_ROOT = "workspace";
+const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || "workspace";
 const WORKSPACE_PREFIX = "workspace-";
 
 export type WorkspaceStatus = "ready" | "running" | "completed" | "failed";
@@ -30,7 +30,9 @@ function assertWorkspaceId(workspaceId: string) {
 }
 
 function getWorkspaceRootDir() {
-  return path.join(process.cwd(), WORKSPACE_ROOT);
+  return path.isAbsolute(WORKSPACE_ROOT)
+    ? WORKSPACE_ROOT
+    : path.join(/*turbopackIgnore: true*/ process.cwd(), WORKSPACE_ROOT);
 }
 
 function sanitizeFilename(filename: string, fallback: string) {
@@ -51,7 +53,7 @@ function getParsedJsonFilename(filename: string) {
 export function getWorkspacePaths(workspaceId: string, originalFilename = "original.pdf") {
   assertWorkspaceId(workspaceId);
 
-  const workspaceDir = path.join(getWorkspaceRootDir(), workspaceId);
+  const workspaceDir = path.join(/*turbopackIgnore: true*/ getWorkspaceRootDir(), workspaceId);
   const uploadsDir = path.join(workspaceDir, "uploads");
   const resultsDir = path.join(workspaceDir, "results");
   const tracesDir = path.join(workspaceDir, "traces");
