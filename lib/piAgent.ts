@@ -170,6 +170,91 @@ function tableFieldsToResult(fields: ExtractionTableField[] | ExtractionResult):
   return result;
 }
 
+type ParsedTextItem = { text?: string; x?: number; y?: number; width?: number; height?: number };
+type ParsedDocumentJson = { pages?: { pageNum?: number; textItems?: ParsedTextItem[] }[] };
+
+function sourceBBoxFromTextItem(pageNum: number | undefined, item: ParsedTextItem, matchedText: string): SourceBBox {
+  return {
+    page: pageNum || 0,
+    x: item.x || 0,
+    y: item.y || 0,
+    width: item.width || 0,
+    height: item.height || 0,
+    matched_text: matchedText,
+  };
+}
+
+function findTextCoordinateInParsedDocument(parsed: ParsedDocumentJson, query: string | number | null | undefined): SourceBBox | null {
+  const rawQuery = String(query ?? "").trim().slice(0, 120);
+
+  if (!rawQuery) {
+    return null;
+  }
+
+  const queries = Array.from(new Set([rawQuery, rawQuery.replace(/,/g, "")].filter(Boolean))).map((item) => item.toLowerCase());
+
+  for (const page of parsed.pages || []) {
+    for (const item of page.textItems || []) {
+      const text = item.text || "";
+      const lowerText = text.toLowerCase();
+      const lowerTextWithoutCommas = lowerText.replace(/,/g, "");
+
+      if (queries.some((candidate) => lowerText.includes(candidate) || lowerTextWithoutCommas.includes(candidate))) {
+        return sourceBBoxFromTextItem(page.pageNum, item, text);
+      }
+    }
+  }
+
+  return null;
+}
+
+function firstCoordinateMatch(parsed: ParsedDocumentJson, candidates: (string | number | null | undefined)[]): SourceBBox | null {
+  for (const candidate of candidates) {
+    const match = findTextCoordinateInParsedDocument(parsed, candidate);
+
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+async function fillComponentBBoxes(
+  components: ComponentExtractionResult,
+  documentJsonPath: string
+): Promise<ComponentExtractionResult> {
+  const parsed = JSON.parse(await readFile(documentJsonPath, "utf8")) as ParsedDocumentJson;
+  const enriched: ComponentExtractionResult = { ...components };
+
+  for (const componentName of COMPONENT_NAMES) {
+    const component = enriched[componentName];
+
+    if (!component) {
+      continue;
+    }
+
+    enriched[componentName] = {
+      ...component,
+      SerialNumber_bbox:
+        component.SerialNumber_bbox ?? firstCoordinateMatch(parsed, [component.SerialNumber]),
+      TSN_bbox:
+        component.TSN_bbox ?? firstCoordinateMatch(parsed, [component.TSN_raw, component.TSN]),
+      CSN_bbox:
+        component.CSN_bbox ?? firstCoordinateMatch(parsed, [component.CSN_raw, component.CSN]),
+      MonthlyUtil_Hrs_bbox:
+        component.MonthlyUtil_Hrs_bbox ??
+        firstCoordinateMatch(parsed, [component.MonthlyUtil_Hrs_raw, component.MonthlyUtil_Hrs]),
+      MonthlyUtil_Cyc_bbox:
+        component.MonthlyUtil_Cyc_bbox ??
+        firstCoordinateMatch(parsed, [component.MonthlyUtil_Cyc_raw, component.MonthlyUtil_Cyc]),
+      location_bbox: component.location_bbox ?? firstCoordinateMatch(parsed, [component.location]),
+    };
+  }
+
+  return enriched;
+}
+
 const nullableString = Type.Union([Type.String(), Type.Null()]);
 const nullableNumber = Type.Union([Type.Number(), Type.Null()]);
 
@@ -421,7 +506,10 @@ function createWorkspaceTools(options: {
     ),
     async execute(_toolCallId, params) {
       const result = normalizeResult(params as ExtractionResult);
-      const components = (params as { components?: ComponentExtractionResult }).components || {};
+      const components = await fillComponentBBoxes(
+        (params as { components?: ComponentExtractionResult }).components || {},
+        options.documentJsonPath
+      );
       const payload = {
         fields: resultToTableFields(result),
         components,
@@ -587,7 +675,7 @@ export async function runWorkspaceExtraction(options: {
     model,
     modelRuntime,
     noTools: "builtin",
-    tools: ["read_document", "grep_document", "find_text_coordinates", "save_result"],
+    tools: ["read_document", "grep_document", "save_result"],
     customTools: tools,
     sessionManager,
     thinkingLevel,
@@ -750,7 +838,7 @@ export async function runWorkspaceExtraction(options: {
 
 ## Component Extraction
 
-Also extract component utilization for these components when present:
+Also extract component utilization for these components when present. Do not skip Airframe: the Airframe row is the aircraft itself. If the PDF gives aircraft total/month utilization and aircraft serial number, use those values for Airframe even when there is no separate component table row.
 
 - Airframe
 - Engine1
@@ -762,28 +850,28 @@ Also extract component utilization for these components when present:
 
 For each component return:
 
-- SerialNumber
+- SerialNumber. For Airframe, search aircraft serial/MSN/manufacturer serial/Airframe serial labels; do not confuse this with aircraft registration.
 - TSN: numeric total time since new, converting HH:MM to decimal hours rounded to 2 decimals (example 37020:50 -> 37020.83)
 - CSN: numeric cycles since new
 - MonthlyUtil_Hrs: numeric period/monthly hours, converting HH:MM to decimal hours
 - MonthlyUtil_Cyc: numeric period/monthly cycles
 - attachment_status: Attached, Removed, or null
 - derate
-- location
+- location: extract the component position/name from the PDF when present, for example POSITION NO.1, POSITION NO.2, APU, Main Landing Gear 1, Main Landing Gear 2, or Nose Landing Gear. Do not use coordinate values here. Use null when absent.
 - extraction_confidence: 0 through 1
 - raw_source_text: concise source snippet used
 - available: false when the component is absent
 - TSN_raw, CSN_raw, MonthlyUtil_Hrs_raw, MonthlyUtil_Cyc_raw
 - source_file: uploaded PDF filename when known
 - current_aircraft: registration/current aircraft when known
-- *_bbox fields: use find_text_coordinates for extracted values and save the closest matching coordinate object; use null when unavailable.
+- *_bbox fields: set null when calling save_result; local code fills the closest matching coordinate object from the parsed PDF JSON automatically.
 
 ## Action
 
 1. First write a short visible plan in plain text explaining which labels/components you will search. Do not reveal hidden/private chain-of-thought.
-2. Use grep_document to locate likely labels and values.
+2. Use grep_document to locate likely labels and values, including Airframe/aircraft serial/MSN and aircraft total/month utilization labels.
 3. Use read_document when more context is needed.
-4. Use find_text_coordinates for key extracted values so bbox fields can be saved from the parsed PDF JSON.
+4. Do not call any coordinate lookup tool; set *_bbox fields to null because coordinates are added automatically after save_result.
 5. After tool results, write a short visible summary of what you found and why each value is selected.
 6. Call save_result exactly once with all 5 summary fields and all component objects.
 7. After save_result completes, write a final concise Markdown summary table of the summary fields and components.

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type ComponentExtraction = {
@@ -89,6 +90,51 @@ const componentOrder = [
   "LandingGearRight",
   "LandingGearNose",
 ];
+
+const componentThemes: Record<string, { card: string; badge: string; bar: string; accent: string }> = {
+  Airframe: {
+    card: "border-blue-200 bg-gradient-to-br from-blue-50 via-white to-sky-50",
+    badge: "bg-blue-100 text-blue-700",
+    bar: "from-blue-500 to-sky-500",
+    accent: "text-blue-700",
+  },
+  Engine1: {
+    card: "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-green-50",
+    badge: "bg-emerald-100 text-emerald-700",
+    bar: "from-emerald-500 to-green-500",
+    accent: "text-emerald-700",
+  },
+  Engine2: {
+    card: "border-violet-200 bg-gradient-to-br from-violet-50 via-white to-purple-50",
+    badge: "bg-violet-100 text-violet-700",
+    bar: "from-violet-500 to-purple-500",
+    accent: "text-violet-700",
+  },
+  APU: {
+    card: "border-orange-200 bg-gradient-to-br from-orange-50 via-white to-amber-50",
+    badge: "bg-orange-100 text-orange-700",
+    bar: "from-orange-500 to-amber-500",
+    accent: "text-orange-700",
+  },
+  LandingGearLeft: {
+    card: "border-pink-200 bg-gradient-to-br from-pink-50 via-white to-rose-50",
+    badge: "bg-pink-100 text-pink-700",
+    bar: "from-pink-500 to-rose-500",
+    accent: "text-pink-700",
+  },
+  LandingGearRight: {
+    card: "border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-teal-50",
+    badge: "bg-cyan-100 text-cyan-700",
+    bar: "from-cyan-500 to-teal-500",
+    accent: "text-cyan-700",
+  },
+  LandingGearNose: {
+    card: "border-yellow-200 bg-gradient-to-br from-yellow-50 via-white to-lime-50",
+    badge: "bg-yellow-100 text-yellow-700",
+    bar: "from-yellow-500 to-lime-500",
+    accent: "text-yellow-700",
+  },
+};
 
 function formatCell(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") {
@@ -426,9 +472,17 @@ export default function FileUploadPage() {
       <section className="relative mx-auto min-h-screen w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:py-8">
         <div className="mb-6 grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-sm font-medium text-cyan-100 shadow-lg backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.9)]" />
-              Pi workspace extraction
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-sm font-medium text-cyan-100 shadow-lg backdrop-blur">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.9)]" />
+                Pi workspace extraction
+              </div>
+              <Link
+                href="/replays"
+                className="inline-flex items-center rounded-full border border-white/10 bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-cyan-100"
+              >
+                View Replays
+              </Link>
             </div>
 
             <h1 className="mt-5 max-w-4xl text-3xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
@@ -492,7 +546,7 @@ export default function FileUploadPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-xs font-black uppercase tracking-wide text-slate-400">Selected file</p>
-                      <p className="mt-1 truncate font-bold text-slate-900">{file.name}</p>
+                      <p className="rr-mask mt-1 truncate font-bold text-slate-900">{file.name}</p>
                       <p className="mt-1 text-sm text-slate-500">{fileSize} MB</p>
                     </div>
 
@@ -530,11 +584,11 @@ export default function FileUploadPage() {
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-3">
                   <p className="text-slate-500">Workspace ID</p>
-                  <p className="mt-1 break-all font-semibold text-slate-900">{workspaceId || "Created after upload"}</p>
+                  <p className="rr-mask mt-1 break-all font-semibold text-slate-900">{workspaceId || "Created after upload"}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-3">
                   <p className="text-slate-500">Filename</p>
-                  <p className="mt-1 break-all font-semibold text-slate-900">{filename || file?.name || "No file selected"}</p>
+                  <p className="rr-mask mt-1 break-all font-semibold text-slate-900">{filename || file?.name || "No file selected"}</p>
                 </div>
               </div>
             </div>
@@ -595,74 +649,120 @@ export default function FileUploadPage() {
             </div>
 
             {structuredOutput && (
-              <div className="rounded-[2rem] border border-white/10 bg-white/95 p-6 text-slate-950 shadow-2xl shadow-black/30">
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-600">Result</p>
-                    <h2 className="mt-2 text-2xl font-black">Structured aircraft fields</h2>
+              <>
+                <div className="rounded-[2rem] border border-white/10 bg-white/95 p-6 text-slate-950 shadow-2xl shadow-black/30">
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-600">Result</p>
+                      <h2 className="mt-2 text-2xl font-black">Structured aircraft fields</h2>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-black text-emerald-700">
+                      Saved to result.json
+                    </span>
                   </div>
-                  <span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-black text-emerald-700">
-                    Saved to result.json
-                  </span>
-                </div>
 
-                <div className="grid min-w-0 gap-4 md:grid-cols-2">
-                  {structuredOutput.fields.map((field) => (
-                    <div key={field.name} className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
-                      <p className="text-xs font-black uppercase tracking-wide text-slate-400">{fieldLabels[field.name]}</p>
-                      <p className="mt-3 break-words text-2xl font-black text-slate-950">{field.value || "Not found"}</p>
-                      <div className="mt-4">
-                        <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-500">
-                          <span>Confidence</span>
-                          <span>{field.confidence}%</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-500"
-                            style={{ width: `${Math.max(0, Math.min(100, field.confidence))}%` }}
-                          />
+                  <div className="grid min-w-0 gap-4 md:grid-cols-2">
+                    {structuredOutput.fields.map((field) => (
+                      <div key={field.name} className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-400">{fieldLabels[field.name]}</p>
+                        <p className="mt-3 break-words text-2xl font-black text-slate-950">{field.value || "Not found"}</p>
+                        <div className="mt-4">
+                          <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-500">
+                            <span>Confidence</span>
+                            <span>{field.confidence}%</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-500"
+                              style={{ width: `${Math.max(0, Math.min(100, field.confidence))}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
 
                 {structuredOutput.components && Object.keys(structuredOutput.components).length > 0 && (
-                  <div className="mt-6 overflow-x-auto rounded-3xl border border-slate-200 bg-white p-4">
-                    <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">Component extraction</p>
-                    <table className="w-full min-w-[900px] text-left text-sm">
-                      <thead className="text-xs uppercase text-slate-500">
-                        <tr className="border-b border-slate-200">
-                          <th className="py-2 pr-4">Component</th>
-                          <th className="py-2 pr-4">Serial</th>
-                          <th className="py-2 pr-4">TSN</th>
-                          <th className="py-2 pr-4">CSN</th>
-                          <th className="py-2 pr-4">Month Hrs</th>
-                          <th className="py-2 pr-4">Month Cyc</th>
-                          <th className="py-2 pr-4">Status</th>
-                          <th className="py-2 pr-4">Location</th>
-                          <th className="py-2">Confidence</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(structuredOutput.components).map(([name, component]) => (
-                          <tr key={name} className="border-b border-slate-100 last:border-0">
-                            <td className="py-3 pr-4 font-bold text-slate-900">{name}</td>
-                            <td className="py-3 pr-4">{component.SerialNumber || "-"}</td>
-                            <td className="py-3 pr-4">{component.TSN ?? "-"}</td>
-                            <td className="py-3 pr-4">{component.CSN ?? "-"}</td>
-                            <td className="py-3 pr-4">{component.MonthlyUtil_Hrs ?? "-"}</td>
-                            <td className="py-3 pr-4">{component.MonthlyUtil_Cyc ?? "-"}</td>
-                            <td className="py-3 pr-4">{component.attachment_status || (component.available ? "Available" : "Not found")}</td>
-                            <td className="py-3 pr-4">{component.location || "-"}</td>
-                            <td className="py-3">{Math.round((component.extraction_confidence || 0) * 100)}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="mt-8 lg:-ml-[360px] xl:-ml-[400px]">
+                    <div className="mb-5">
+                      <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Component extraction</p>
+                      <h3 className="mt-2 text-3xl font-black text-white">Individual components</h3>
+                    </div>
+
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      {componentOrder
+                        .filter((name) => structuredOutput.components?.[name])
+                        .map((name) => {
+                          const component = structuredOutput.components?.[name];
+
+                          if (!component) {
+                            return null;
+                          }
+
+                          const theme = componentThemes[name] || componentThemes.Airframe;
+                          const confidence = Math.round((component.extraction_confidence || 0) * 100);
+                          const status = component.attachment_status || (component.available ? "Available" : "Not found");
+
+                          return (
+                            <div
+                              key={name}
+                              className="min-h-[360px] rounded-[2rem] border border-white/10 bg-slate-900/80 p-7 text-white shadow-2xl shadow-black/25 backdrop-blur"
+                            >
+                              <div className="mb-5 flex items-start justify-between gap-3">
+                                <div>
+                                  <p className={`text-[10px] font-black uppercase tracking-[0.28em] ${theme.accent}`}>Component</p>
+                                  <h4 className="mt-3 break-words text-3xl font-black text-white">{name}</h4>
+                                </div>
+                                <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${theme.badge}`}>{status}</span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Serial</p>
+                                  <p className="mt-1 break-words text-lg font-black text-white">{formatCell(component.SerialNumber)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Location</p>
+                                  <p className="mt-1 break-words text-lg font-black text-white">{formatCell(component.location)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">TSN</p>
+                                  <p className="mt-1 break-words text-lg font-black text-white">{formatCell(component.TSN)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">CSN</p>
+                                  <p className="mt-1 break-words text-lg font-black text-white">{formatCell(component.CSN)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Month Hrs</p>
+                                  <p className="mt-1 break-words text-lg font-black text-white">{formatCell(component.MonthlyUtil_Hrs)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Month Cyc</p>
+                                  <p className="mt-1 break-words text-lg font-black text-white">{formatCell(component.MonthlyUtil_Cyc)}</p>
+                                </div>
+                              </div>
+
+                              <div className="mt-5">
+                                <div className="mb-2 flex items-center justify-between text-sm font-bold text-slate-300">
+                                  <span>Confidence</span>
+                                  <span>{confidence}%</span>
+                                </div>
+                                <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                                  <div
+                                    className={`h-full rounded-full bg-gradient-to-r ${theme.bar}`}
+                                    style={{ width: `${Math.max(0, Math.min(100, confidence))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </section>
         </div>
