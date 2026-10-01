@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || "workspace";
+const DEFAULT_WORKSPACE_ROOT = "./workspace";
+const WORKSPACE_ROOT =
+  process.env.WORKSPACE_ROOT?.trim() ||
+  process.env.APP_WORKSPACE_DIR?.trim() ||
+  process.env.AZURE_FILES_MOUNT_PATH?.trim() ||
+  DEFAULT_WORKSPACE_ROOT;
 const WORKSPACE_PREFIX = "workspace-";
 
 export type WorkspaceStatus = "ready" | "running" | "completed" | "failed";
@@ -47,8 +52,8 @@ function assertWorkspaceId(workspaceId: string) {
 
 function getWorkspaceRootDir() {
   return path.isAbsolute(WORKSPACE_ROOT)
-    ? WORKSPACE_ROOT
-    : path.join(/*turbopackIgnore: true*/ process.cwd(), WORKSPACE_ROOT);
+    ? path.normalize(WORKSPACE_ROOT)
+    : path.resolve(/*turbopackIgnore: true*/ process.cwd(), WORKSPACE_ROOT);
 }
 
 function sanitizeFilename(filename: string, fallback: string) {

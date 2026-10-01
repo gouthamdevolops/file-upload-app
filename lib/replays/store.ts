@@ -16,14 +16,21 @@ export type ReplayEventRange = {
 
 const gzip = promisify(gzipCallback);
 const gunzip = promisify(gunzipCallback);
-const DATA_ROOT = process.env.DATA_ROOT || process.env.WORKSPACE_ROOT || "workspace";
+const DATA_ROOT =
+  process.env.DATA_ROOT?.trim() ||
+  process.env.WORKSPACE_ROOT?.trim() ||
+  process.env.APP_WORKSPACE_DIR?.trim() ||
+  process.env.AZURE_FILES_MOUNT_PATH?.trim() ||
+  "./workspace";
 const REPLAY_ROOT = path.join(resolveDataRoot(), "replays");
 const UUID_RE = /^[a-f0-9-]{36}$/i;
 const SAFE_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const recordingLocks = new Map<string, Promise<void>>();
 
 function resolveDataRoot() {
-  return path.isAbsolute(DATA_ROOT) ? DATA_ROOT : path.join(/*turbopackIgnore: true*/ process.cwd(), DATA_ROOT);
+  return path.isAbsolute(DATA_ROOT)
+    ? path.normalize(DATA_ROOT)
+    : path.resolve(/*turbopackIgnore: true*/ process.cwd(), DATA_ROOT);
 }
 
 function assertWithin(parent: string, child: string) {

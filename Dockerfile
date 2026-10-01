@@ -38,7 +38,8 @@ ENV PI_CODING_AGENT_DIR=/home/nextjs/.pi/agent
 ENV HOME=/home/nextjs
 
 # App workspace for uploaded PDFs, LiteParse JSON, traces, and result.json.
-# /app/workspace is also declared as a Docker volume below.
+# In Azure App Service, mount Azure Files to /app/workspace or override this
+# with WORKSPACE_ROOT / APP_WORKSPACE_DIR / AZURE_FILES_MOUNT_PATH.
 ENV WORKSPACE_ROOT=/app/workspace
 
 # Install runtime OS packages often needed by PDF/document parsing and native modules.
