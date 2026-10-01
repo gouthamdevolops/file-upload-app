@@ -1,5 +1,15 @@
 # Dependencies
+# Keep local dependency trees out of `az acr build` source packaging.
+# The broad patterns are intentional because pnpm creates nested/symlinked
+# node_modules paths that Azure CLI can try to walk on Windows.
 node_modules
+node_modules/**
+**/node_modules
+**/node_modules/**
+.pnpm
+.pnpm/**
+**/.pnpm
+**/.pnpm/**
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
