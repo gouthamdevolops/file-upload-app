@@ -114,6 +114,44 @@ const componentOrder = [
   "LandingGearNose",
 ];
 
+const componentVisuals: Record<string, { card: string; chip: string; bar: string }> = {
+  Airframe: {
+    card: "border-sky-300/35 bg-gradient-to-br from-[#082f49] via-[#0f4c81] to-[#075985]",
+    chip: "bg-sky-100 text-sky-800",
+    bar: "from-sky-300 to-cyan-200",
+  },
+  Engine1: {
+    card: "border-emerald-300/35 bg-gradient-to-br from-[#063b35] via-[#047857] to-[#065f46]",
+    chip: "bg-emerald-100 text-emerald-800",
+    bar: "from-emerald-300 to-lime-200",
+  },
+  Engine2: {
+    card: "border-indigo-300/35 bg-gradient-to-br from-[#1e1b4b] via-[#4338ca] to-[#312e81]",
+    chip: "bg-indigo-100 text-indigo-800",
+    bar: "from-indigo-300 to-violet-200",
+  },
+  APU: {
+    card: "border-amber-300/35 bg-gradient-to-br from-[#451a03] via-[#b45309] to-[#92400e]",
+    chip: "bg-amber-100 text-amber-900",
+    bar: "from-amber-300 to-yellow-200",
+  },
+  LandingGearLeft: {
+    card: "border-rose-300/35 bg-gradient-to-br from-[#4c0519] via-[#be123c] to-[#881337]",
+    chip: "bg-rose-100 text-rose-800",
+    bar: "from-rose-300 to-pink-200",
+  },
+  LandingGearRight: {
+    card: "border-cyan-300/35 bg-gradient-to-br from-[#164e63] via-[#0891b2] to-[#155e75]",
+    chip: "bg-cyan-100 text-cyan-800",
+    bar: "from-cyan-300 to-teal-200",
+  },
+  LandingGearNose: {
+    card: "border-yellow-300/35 bg-gradient-to-br from-[#422006] via-[#ca8a04] to-[#854d0e]",
+    chip: "bg-yellow-100 text-yellow-900",
+    bar: "from-yellow-300 to-orange-200",
+  },
+};
+
 function formatCell(value: unknown) {
   if (value === null || value === undefined || value === "") {
     return "-";
@@ -136,12 +174,6 @@ const componentDisplayFields: { key: keyof ComponentExtraction; label: string }[
   { key: "attachment_status", label: "Attachment Status" },
   { key: "derate", label: "Derate" },
   { key: "available", label: "Available" },
-  { key: "extraction_confidence", label: "Extraction Confidence" },
-  { key: "TSN_raw", label: "TSN Raw" },
-  { key: "CSN_raw", label: "CSN Raw" },
-  { key: "MonthlyUtil_Hrs_raw", label: "Monthly Util Hrs Raw" },
-  { key: "MonthlyUtil_Cyc_raw", label: "Monthly Util Cyc Raw" },
-  { key: "source_file", label: "Source File" },
   { key: "current_aircraft", label: "Current Aircraft" },
 ];
 
@@ -483,7 +515,8 @@ export default function FileUploadPage() {
         </div>
       </div>
 
-      <section className="relative z-10 mx-auto grid max-w-[1500px] gap-6 px-5 py-6 xl:grid-cols-[430px_minmax(0,1fr)]">
+      <section className="relative z-10 mx-auto max-w-[1500px] space-y-6 px-5 py-6">
+        <div className="grid gap-6 xl:grid-cols-[430px_minmax(0,1fr)]">
         <aside className="space-y-5">
           <div className="glass-panel overflow-hidden rounded-[2rem]">
             <div className="runway-card border-b border-sky-200/10 p-6 text-white">
@@ -569,37 +602,40 @@ export default function FileUploadPage() {
               </div>
             </div>
           )}
+        </section>
+      </div>
 
           {structuredOutput?.components && Object.keys(structuredOutput.components).length > 0 && (
-            <div className="glass-panel rounded-[2rem] p-6">
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#1d4ed8]">Tracked assets</p>
-              <h2 className="mt-2 text-2xl font-black text-slate-950">Component utilization register</h2>
-              <div className="mt-5 grid gap-4 xl:grid-cols-2">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-sky-200">Tracked assets</p>
+              <h2 className="mt-2 text-2xl font-black text-white">Component utilization register</h2>
+              <div className="mt-5 grid gap-6 lg:grid-cols-2">
                 {componentOrder.filter((name) => structuredOutput.components?.[name]).map((name) => {
                   const component = structuredOutput.components?.[name];
                   if (!component) return null;
                   const confidence = Math.round((component.extraction_confidence || 0) * 100);
                   const status = component.attachment_status || (component.available ? "Available" : "Not found");
+                  const visual = componentVisuals[name] || componentVisuals.Airframe;
                   return (
-                    <div key={name} className="rounded-3xl border border-slate-200 bg-[#fbfcfe] p-5 shadow-sm">
-                      <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
+                    <div key={name} className={`rounded-[1.5rem] border p-4 text-white shadow-2xl shadow-slate-950/25 ${visual.card}`}>
+                      <div className="mb-3 flex items-start justify-between gap-3 border-b border-white/15 pb-3">
                         <div>
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Asset module</p>
-                          <h3 className="mt-1 text-2xl font-black text-[#0b1f3a]">{name}</h3>
+                          <p className="text-[10px] font-black uppercase tracking-[0.26em] text-white/60">Asset module</p>
+                          <h3 className="mt-1 text-2xl font-black tracking-[-0.03em] text-white">{name}</h3>
                         </div>
-                        <span className="rounded-full bg-[#e0f2fe] px-3 py-1 text-xs font-black text-[#075985]">{status}</span>
+                        <span className={`rounded-full px-3 py-1 text-xs font-black ${visual.chip}`}>{status}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         {componentDisplayFields.map((field) => (
-                          <div key={field.key} className="rounded-xl bg-white p-3 ring-1 ring-slate-200">
-                            <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{field.label}</p>
-                            <p className="mt-1 break-words font-black text-slate-950">{formatCell(component[field.key])}</p>
+                          <div key={field.key} className="min-h-16 rounded-xl border border-white/12 bg-white/92 p-3 text-slate-950 shadow-inner shadow-white/20">
+                            <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">{field.label}</p>
+                            <p className="mt-1 break-words text-base font-black text-slate-950">{formatCell(component[field.key])}</p>
                           </div>
                         ))}
                       </div>
-                      <div className="mt-4 rounded-2xl bg-slate-100 p-3">
-                        <div className="flex justify-between text-xs font-bold text-slate-600"><span>Extraction confidence</span><span>{confidence}%</span></div>
-                        <div className="mt-2 h-2 rounded-full bg-slate-200"><div className="h-full rounded-full bg-[#d7a348]" style={{ width: `${Math.max(0, Math.min(100, confidence))}%` }} /></div>
+                      <div className="mt-3 rounded-xl border border-white/10 bg-black/18 p-3">
+                        <div className="flex justify-between text-xs font-bold text-white/85"><span>Extraction confidence</span><span>{confidence}%</span></div>
+                        <div className="mt-2 h-2 rounded-full bg-white/15"><div className={`h-full rounded-full bg-gradient-to-r ${visual.bar}`} style={{ width: `${Math.max(0, Math.min(100, confidence))}%` }} /></div>
                       </div>
                     </div>
                   );
@@ -627,7 +663,6 @@ export default function FileUploadPage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-slate-300">Extraction audit events will appear here after upload.</div>
             )}
           </div>
-        </section>
       </section>
     </main>
   );
