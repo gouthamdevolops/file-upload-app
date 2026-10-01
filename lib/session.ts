@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || "workspace";
@@ -17,6 +17,22 @@ export type WorkspaceMetadata = {
   status: WorkspaceStatus;
   createdAt: string;
   updatedAt: string;
+};
+
+export type SavedWorkspaceSummary = WorkspaceMetadata & {
+  hasResult: boolean;
+  traceCount: number;
+};
+
+export type SavedWorkspaceDetails = SavedWorkspaceSummary & {
+  markdown: string | null;
+  result: unknown | null;
+  files: {
+    original: string;
+    markdown: string;
+    parsedJson: string;
+    result: string;
+  };
 };
 
 function assertWorkspaceId(workspaceId: string) {
@@ -168,4 +184,84 @@ export async function saveWorkspaceParsedJson(workspaceId: string, parsedJson: u
   const paths = getWorkspacePaths(workspaceId, originalFilename);
   await writeFile(paths.documentJsonPath, `${JSON.stringify(parsedJson, null, 2)}\n`);
   return paths.documentJsonPath;
+}
+
+async function pathExists(filePath: string) {
+  try {
+    await stat(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getTraceCount(workspaceId: string, originalFilename?: string) {
+  const paths = getWorkspacePaths(workspaceId, originalFilename);
+
+  try {
+    const files = await readdir(paths.tracesDir);
+    return files.filter((file) => file.endsWith(".jsonl")).length;
+  } catch {
+    return 0;
+  }
+}
+
+export async function listSavedWorkspaces(): Promise<SavedWorkspaceSummary[]> {
+  const rootDir = getWorkspaceRootDir();
+  const entries = await readdir(rootDir, { withFileTypes: true }).catch(() => []);
+  const summaries = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(WORKSPACE_PREFIX))
+      .map(async (entry) => {
+        try {
+          const metadata = await readWorkspaceMetadata(entry.name);
+          const paths = getWorkspacePaths(entry.name, metadata.storedOriginalFilename || metadata.originalFilename);
+
+          return {
+            ...metadata,
+            hasResult: await pathExists(paths.resultPath),
+            traceCount: await getTraceCount(entry.name, metadata.storedOriginalFilename || metadata.originalFilename),
+          } satisfies SavedWorkspaceSummary;
+        } catch {
+          return null;
+        }
+      })
+  );
+
+  return summaries
+    .filter((summary): summary is SavedWorkspaceSummary => summary !== null)
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+}
+
+export async function deleteSavedWorkspace(workspaceId: string) {
+  assertWorkspaceId(workspaceId);
+  const paths = getWorkspacePaths(workspaceId);
+  await rm(paths.workspaceDir, { recursive: true, force: true });
+}
+
+export async function readSavedWorkspaceDetails(workspaceId: string): Promise<SavedWorkspaceDetails> {
+  const metadata = await readWorkspaceMetadata(workspaceId);
+  const paths = getWorkspacePaths(workspaceId, metadata.storedOriginalFilename || metadata.originalFilename);
+  const [hasResult, traceCount] = await Promise.all([
+    pathExists(paths.resultPath),
+    getTraceCount(workspaceId, metadata.storedOriginalFilename || metadata.originalFilename),
+  ]);
+  const [markdown, resultText] = await Promise.all([
+    readFile(paths.documentPath, "utf8").catch(() => null),
+    readFile(paths.resultPath, "utf8").catch(() => null),
+  ]);
+
+  return {
+    ...metadata,
+    hasResult,
+    traceCount,
+    markdown,
+    result: resultText ? JSON.parse(resultText) : null,
+    files: {
+      original: paths.originalFilePath,
+      markdown: paths.documentPath,
+      parsedJson: paths.documentJsonPath,
+      result: paths.resultPath,
+    },
+  };
 }

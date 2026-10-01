@@ -11,20 +11,33 @@ export default async function ReplayPage({
   const entityId = typeof query.entityId === "string" ? query.entityId : undefined;
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">Session replay</p>
-            <h1 className="mt-2 break-all text-4xl font-black">{recordingId}</h1>
+    <main className="aviation-shell min-h-screen px-5 py-8 text-white sm:px-6">
+      <section className="relative z-10 mx-auto max-w-7xl space-y-6">
+        <div className="cockpit-panel rounded-[2rem] p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <Link href="/replays" className="text-sm font-bold text-sky-200 hover:text-white">← Back to flight deck audit records</Link>
+              <p className="mt-4 inline-flex rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-amber-100">
+                Session black box replay
+              </p>
+              <h1 className="mt-4 break-all font-mono text-xl font-black tracking-[-0.03em] text-white sm:text-4xl">{recordingId}</h1>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+                Replay the exact browser interaction trail captured while users reviewed aircraft lease records and extraction outputs.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link href="/saved" className="rounded-full border border-sky-200/20 bg-white/10 px-5 py-3 text-sm font-black text-sky-50 transition hover:bg-sky-300/20">
+                Fleet Records
+              </Link>
+              <Link href="/upload-file" className="rounded-full bg-gradient-to-r from-amber-300 to-yellow-200 px-5 py-3 text-sm font-black text-slate-950 shadow-xl transition hover:-translate-y-0.5">
+                Back to cockpit
+              </Link>
+            </div>
           </div>
-          <Link href="/replays" className="rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950">
-            Back to replays
-          </Link>
         </div>
 
         <ReplayPlayer recordingId={recordingId} segment={segment} entityId={entityId} />
-      </div>
+      </section>
     </main>
   );
 }

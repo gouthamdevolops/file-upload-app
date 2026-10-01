@@ -122,31 +122,31 @@ export function ReplayPlayer({ recordingId, segment, entityId }: ReplayPlayerPro
   }, [replay]);
 
   if (error) {
-    return <div className="rounded-3xl border border-red-300/20 bg-red-950/40 p-6 text-red-100">{error}</div>;
+    return <div className="rounded-[2rem] border border-red-300/20 bg-red-950/60 p-6 text-red-100 shadow-2xl">{error}</div>;
   }
 
   if (!replay) {
-    return <div className="rounded-3xl border border-white/10 bg-white/10 p-6 text-slate-300">Loading replay...</div>;
+    return <div className="cockpit-panel rounded-[1.5rem] p-4 text-slate-300">Loading black box replay...</div>;
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white p-4 text-slate-950 shadow-2xl shadow-black/30">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="glass-panel overflow-x-auto rounded-[1.5rem] p-3 text-slate-950">
         <div ref={targetRef} />
       </div>
 
-      <aside className="rounded-3xl border border-white/10 bg-white/10 p-5 text-white shadow-2xl shadow-black/30">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">Segments</p>
+      <aside className="cockpit-panel rounded-[1.5rem] p-4 text-white">
+        <p className="text-xs font-black uppercase tracking-[0.28em] text-sky-300">Flight path segments</p>
         <div className="mt-4 space-y-3">
           {replay.segments.map((item) => (
             <a
               key={item.segmentId}
               href={`/replays/${recordingId}?segment=${item.segmentId}`}
-              className="block rounded-2xl bg-white/10 p-3 text-sm transition hover:bg-white/15"
+              className="block rounded-xl border border-sky-200/10 bg-white/10 p-3 text-sm transition hover:bg-sky-300/15"
             >
               <span className="font-black">Segment {item.segmentId}</span>
               <span className="mt-1 block break-all text-slate-300">{item.path}</span>
-              {item.entityId && <span className="mt-2 inline-flex rounded-full bg-cyan-300/15 px-2 py-1 text-xs font-bold text-cyan-200">{item.entityId}</span>}
+              {item.entityId && <span className="mt-2 inline-flex rounded-full bg-sky-300/15 px-2 py-1 text-xs font-bold text-sky-200">{item.entityId}</span>}
             </a>
           ))}
         </div>

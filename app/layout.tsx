@@ -1,28 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Exo_2, JetBrains_Mono } from "next/font/google";
 import { SessionReplayRecorder } from "@/components/SessionReplayRecorder";
 import "./globals.css";
 
-const geistSans = Geist({
+const inter = Exo_2({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
+const jetBrainsMono = JetBrains_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "File Explorer",
-  description: "upload and explore your files here",
+  title: "AeroLease Ledger",
+  description: "Aircraft lease utilization extraction and evidence records",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <SessionReplayRecorder />
